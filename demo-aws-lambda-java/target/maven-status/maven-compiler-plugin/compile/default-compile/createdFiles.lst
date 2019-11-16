@@ -1,0 +1,6 @@
+demo\lambda\fuction\handler\LambdaRequestStreamHandler.class
+demo\lambda\fuction\handler\HelloWorld.class
+demo\lambda\fuction\handler\LambdaReadSourceWriteTargetS3.class
+demo\lambda\fuction\handler\ReadS3File.class
+demo\lambda\fuction\handler\LambdaMethodHandler.class
+demo\lambda\fuction\handler\LambdaRequestHandler.class
