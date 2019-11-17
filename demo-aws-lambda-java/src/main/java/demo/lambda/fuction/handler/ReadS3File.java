@@ -1,38 +1,30 @@
 package demo.lambda.fuction.handler;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.imageio.ImageIO;
-
-import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.S3Event;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.event.S3EventNotification.S3EventNotificationRecord;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.event.S3EventNotification.S3EventNotificationRecord;
+import com.amazonaws.services.s3.model.S3Object;
 
 public class ReadS3File implements RequestHandler<S3Event, String> {
-	private static final float MAX_WIDTH = 100;
-	private static final float MAX_HEIGHT = 100;
-	private final String JPG_TYPE = (String) "jpg";
-	private final String JPG_MIME = (String) "image/jpeg";
-	private final String PNG_TYPE = (String) "png";
-	private final String PNG_MIME = (String) "image/png";
-
+	private final String TXT_TYPE = "txt";
+	private final String ACCESS_KEY_ID="AAKIAT6IBL7EKWJHADHVRA";
+	private final String SECRET_ACCESS_KEY="Ag5CWcAeqqvQej/0neq8C2R/kBtIi0iNGxMPbFzHvA";
 	public String handleRequest(S3Event s3event, Context context) {
+		StringBuffer sf = new StringBuffer();
 		try {
 			context.getLogger().log("started ............ ");
 			S3EventNotificationRecord record = s3event.getRecords().get(0);
@@ -42,83 +34,48 @@ public class ReadS3File implements RequestHandler<S3Event, String> {
 			// Object key may have spaces or unicode non-ASCII characters.
 			String srcKey = record.getS3().getObject().getUrlDecodedKey();
 			context.getLogger().log("srcKey ............ "+srcKey);
-			String dstBucket = srcBucket + "resized";
-			String dstKey = "resized-" + srcKey;
-			context.getLogger().log("dstBucket ............ "+dstBucket);
-			context.getLogger().log("dstKey ............ "+dstKey);
-			// Sanity check: validate that source and destination are different
-			// buckets.
-			if (srcBucket.equals(dstBucket)) {
-				System.out.println("Destination bucket must not match source bucket.");
-				return "";
-			}
-
 			// Infer the image type.
 			Matcher matcher = Pattern.compile(".*\\.([^\\.]*)").matcher(srcKey);
 			if (!matcher.matches()) {
 				System.out.println("Unable to infer image type for key " + srcKey);
+				context.getLogger().log("Unable to infer image type for key " + srcKey);
 				return "";
 			}
-			String imageType = matcher.group(1);
-			if (!(JPG_TYPE.equals(imageType)) && !(PNG_TYPE.equals(imageType))) {
-				System.out.println("Skipping non-image " + srcKey);
+			String textType = matcher.group(1);
+			if (!(TXT_TYPE.equals(textType))) {
+				System.out.println(" Not the text type the file::   " + srcKey + " upload the valid txt type in bucket");
+				context.getLogger().log(" Not the text type the file::   " + srcKey + " upload the valid txt type in bucket");
 				return "";
 			}
-
 			// Download the image from S3 into a stream
-			AmazonS3 s3Client = AmazonS3ClientBuilder.defaultClient();
-			S3Object s3Object = s3Client.getObject(new GetObjectRequest(srcBucket, srcKey));
-			InputStream objectData = s3Object.getObjectContent();
-
-			// Read the source image
-			BufferedImage srcImage = ImageIO.read(objectData);
-			int srcHeight = srcImage.getHeight();
-			int srcWidth = srcImage.getWidth();
-			// Infer the scaling factor to avoid stretching the image
-			// unnaturally
-			float scalingFactor = Math.min(MAX_WIDTH / srcWidth, MAX_HEIGHT / srcHeight);
-			int width = (int) (scalingFactor * srcWidth);
-			int height = (int) (scalingFactor * srcHeight);
-
-			BufferedImage resizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-			Graphics2D g = resizedImage.createGraphics();
-			// Fill with white before applying semi-transparent (alpha) images
-			g.setPaint(Color.white);
-			g.fillRect(0, 0, width, height);
-			// Simple bilinear resize
-			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-			g.drawImage(srcImage, 0, 0, width, height, null);
-			g.dispose();
-
-			// Re-encode image to target format
-			ByteArrayOutputStream os = new ByteArrayOutputStream();
-			ImageIO.write(resizedImage, imageType, os);
-			InputStream is = new ByteArrayInputStream(os.toByteArray());
-			// Set Content-Length and Content-Type
-			ObjectMetadata meta = new ObjectMetadata();
-			meta.setContentLength(os.size());
-			if (JPG_TYPE.equals(imageType)) {
-				meta.setContentType(JPG_MIME);
-			}
-			if (PNG_TYPE.equals(imageType)) {
-				meta.setContentType(PNG_MIME);
+		//	AmazonS3 s3Client = AmazonS3ClientBuilder.defaultClient();
+			AWSCredentials credentials = new BasicAWSCredentials(ACCESS_KEY_ID, SECRET_ACCESS_KEY);
+			AmazonS3 s3client = AmazonS3ClientBuilder.standard()
+					.withCredentials(new AWSStaticCredentialsProvider(credentials)).withRegion(Regions.US_EAST_2).build();
+			try (final S3Object s3Object = s3client.getObject(srcBucket, srcKey);
+			     final InputStreamReader streamReader = new InputStreamReader(s3Object.getObjectContent(),
+							StandardCharsets.UTF_8);
+					final BufferedReader reader = new BufferedReader(streamReader)) {
+				String value;
+				System.out.println("\n\n******************************* FILE READING START *****************");
+				System.out.println("\t\t\t\t\t                                        "+ srcKey +"                                     ");
+				System.out.println("******************************* FILE READING START  *****************");
+				while ((value = reader.readLine()) != null) {
+					sf.append(value + "\n");
+				}
+														
+				System.out.println("\n\n" + sf);
+				System.out.println("\n\n******************************* FILE READING END  *****************");
+				System.out.println("\t\t\t\t\t                                      "+ srcKey +"                                     ");
+				System.out.println("******************************* FILE READING END  *****************");
+			} catch (final IOException e) {
+				e.printStackTrace();
 			}
 
-			// Uploading to S3 destination bucket
-			System.out.println("Writing to: " + dstBucket + "/" + dstKey);
-			try {
-				s3Client.putObject(dstBucket, dstKey, is, meta);
-			} catch (AmazonServiceException e) {
-				System.err.println(e.getErrorMessage());
-				System.exit(1);
-			}
-			System.out.println("Successfully resized " + srcBucket + "/" + srcKey + " and uploaded to " + dstBucket
-					+ "/" + dstKey);
-			context.getLogger().log("Successfully resized " + srcBucket + "/" + srcKey + " and uploaded to " + dstBucket
-					+ "/" + dstKey);
-			return "Ok";
-		} catch (IOException e) {
+		
+		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
+		return sf.toString();
 	}
 }
